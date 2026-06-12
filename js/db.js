@@ -609,6 +609,15 @@ export class MusicDatabase {
     }
 
     // User Playlists API
+    // Family profile that owns newly created playlists/folders ('' = shared)
+    _activeProfile() {
+        try {
+            return localStorage.getItem('monochrome-profile') || '';
+        } catch {
+            return '';
+        }
+    }
+
     async createPlaylist(name, tracks = [], cover = '', description = '') {
         const id = crypto.randomUUID();
         const playlist = {
@@ -617,6 +626,7 @@ export class MusicDatabase {
             tracks: tracks.map((t) => this._minifyItem(t.type || 'track', { ...t, addedAt: Date.now() })),
             cover: cover,
             description: description,
+            profile: this._activeProfile(),
             createdAt: Date.now(),
             updatedAt: Date.now(),
             numberOfTracks: tracks.length,
@@ -737,6 +747,7 @@ export class MusicDatabase {
             name: name,
             cover: cover,
             playlists: [],
+            profile: this._activeProfile(),
             createdAt: Date.now(),
             updatedAt: Date.now(),
         };
@@ -746,12 +757,14 @@ export class MusicDatabase {
 
     async getFolders() {
         const db = await this.open();
+        const activeProfile = this._activeProfile();
         return new Promise((resolve, reject) => {
             const transaction = db.transaction('user_folders', 'readonly');
             const store = transaction.objectStore('user_folders');
             const index = store.index('createdAt');
             const request = index.getAll();
-            request.onsuccess = () => resolve(request.result.reverse());
+            request.onsuccess = () =>
+                resolve(request.result.reverse().filter((f) => (f.profile || '') === activeProfile));
             request.onerror = () => reject(request.error);
         });
     }
@@ -789,7 +802,11 @@ export class MusicDatabase {
             const index = store.index('createdAt');
             const request = index.getAll();
             request.onsuccess = () => {
-                const playlists = request.result.reverse(); // Newest first
+                const activeProfile = this._activeProfile();
+                const playlists = request.result
+                    .reverse() // Newest first
+                    // Playlists belong to the family profile that created them
+                    .filter((p) => (p.profile || '') === activeProfile);
                 const processedPlaylists = playlists.map((playlist) => {
                     let needsUpdate = false;
 

@@ -1526,6 +1526,46 @@ export async function handleTrackAction(
                 }
             }
 
+            // Family server playlists (Jellyfin) — only for tracks stored on the server
+            let serverHtml = '';
+            const jellyfinAPI = MusicAPI.instance.jellyfinAPI;
+            const isServerTrack = typeof trackId === 'string' && /^[0-9a-f]{32}$/i.test(trackId);
+            if (jellyfinAPI?.isConfigured() && isServerTrack) {
+                try {
+                    const serverPlaylists = await jellyfinAPI.getUserPlaylists();
+                    const containing = new Set();
+                    await Promise.all(
+                        serverPlaylists.map(async (p) => {
+                            if (await jellyfinAPI.playlistContainsItem(p.uuid, trackId)) containing.add(p.uuid);
+                        })
+                    );
+
+                    serverHtml =
+                        `
+                        <div class="modal-option create-new-server-option" style="border-top: 1px solid var(--border); margin-top: 0.5rem; padding-top: 0.75rem;">
+                            <span style="font-weight: 600; color: var(--primary);">+ New Server Playlist (${escapeHtml(jellyfinAPI.getActiveProfile() || 'Shared')})</span>
+                        </div>
+                    ` +
+                        serverPlaylists
+                            .map((p) => {
+                                const alreadyContains = containing.has(p.uuid);
+                                return `
+                            <div class="modal-option ${alreadyContains ? 'already-contains' : ''}" data-server-id="${p.uuid}">
+                                <span>${escapeHtml(p.title)} <small style="color: var(--muted-foreground)">(server)</small></span>
+                                ${
+                                    alreadyContains
+                                        ? `<button class="remove-from-playlist-btn-modal" title="Remove from playlist" style="background: transparent; border: none; color: inherit; cursor: pointer; padding: 4px; display: flex; align-items: center;">${SVG_BIN(20)}</button>`
+                                        : ''
+                                }
+                            </div>
+                        `;
+                            })
+                            .join('');
+                } catch (error) {
+                    console.warn('Could not load server playlists for modal:', error);
+                }
+            }
+
             list.innerHTML =
                 `
                 <div class="modal-option create-new-option" style="border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
@@ -1546,7 +1586,8 @@ export async function handleTrackAction(
                     </div>
                 `;
                     })
-                    .join('');
+                    .join('') +
+                serverHtml;
             return true;
         };
 
@@ -1593,6 +1634,43 @@ export async function handleTrackAction(
 
                 createModal.classList.add('active');
                 document.getElementById('playlist-name-input').focus();
+                return;
+            }
+
+            // Family server playlists (Jellyfin)
+            const jellyfinAPI = MusicAPI.instance.jellyfinAPI;
+
+            if (option.classList.contains('create-new-server-option')) {
+                const name = window.prompt('Name for the new server playlist:');
+                if (!name || !name.trim()) return;
+                try {
+                    await jellyfinAPI.createPlaylist(name.trim(), [item.id]);
+                    showNotification(`Created server playlist: ${name.trim()}`);
+                    closeModal();
+                } catch (error) {
+                    showNotification(`Could not create server playlist: ${error.message}`);
+                }
+                return;
+            }
+
+            const serverPlaylistId = option.dataset.serverId;
+            if (serverPlaylistId) {
+                const label = option.querySelector('span').textContent;
+                try {
+                    if (removeBtn) {
+                        e.stopPropagation();
+                        await jellyfinAPI.removeFromPlaylist(serverPlaylistId, item.id);
+                        showNotification(`Removed from ${label}`);
+                        await renderModal();
+                    } else {
+                        if (option.classList.contains('already-contains')) return;
+                        await jellyfinAPI.addToPlaylist(serverPlaylistId, item.id);
+                        showNotification(`Added to ${label}`);
+                        closeModal();
+                    }
+                } catch (error) {
+                    showNotification(`Server playlist update failed: ${error.message}`);
+                }
                 return;
             }
 

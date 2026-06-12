@@ -181,7 +181,12 @@ export default function authGatePlugin() {
                     }
 
                     // Authenticated: serve injected index.html for HTML routes
+                    // (static partials are real assets, not SPA routes)
                     const ext = extname(url);
+                    if (url.startsWith('/partials/')) {
+                        next();
+                        return;
+                    }
                     if ((!ext || ext === '.html') && indexHtml) {
                         res.setHeader('Content-Type', 'text/html');
                         res.setHeader('Cache-Control', 'no-store');
@@ -195,6 +200,8 @@ export default function authGatePlugin() {
                 // No auth gate, but env config needs injection into HTML
                 server.middlewares.use((req, res, next) => {
                     const url = req.url.split('?')[0];
+                    // Static HTML partials are real assets, not SPA routes
+                    if (url.startsWith('/partials/')) return next();
                     const ext = extname(url);
                     if (!ext || ext === '.html') {
                         res.setHeader('Content-Type', 'text/html');

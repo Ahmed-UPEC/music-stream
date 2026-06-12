@@ -1,6 +1,7 @@
 // js/music-api.js
 
 import { LosslessAPI } from './api.js';
+import { JellyfinAPI } from './jellyfin-api.js';
 import { PodcastsAPI } from './podcasts-api.js';
 import { musicProviderSettings } from './storage.js';
 
@@ -53,6 +54,7 @@ export class MusicAPI {
     /** @private */
     constructor(settings) {
         this.tidalAPI = new LosslessAPI(settings);
+        this.jellyfinAPI = new JellyfinAPI(settings);
         this.podcastsAPI = new PodcastsAPI();
         this._settings = settings;
         this.videoArtworkCache = new Map();
@@ -73,6 +75,19 @@ export class MusicAPI {
 
     // Get the appropriate API based on provider
     getAPI() {
+        if (this.jellyfinAPI.isConfigured()) {
+            let explicit = null;
+            try {
+                explicit = localStorage.getItem(musicProviderSettings.STORAGE_KEY);
+            } catch {
+                // ignore
+            }
+            // Jellyfin is the default provider when configured, unless another
+            // provider was explicitly selected in settings.
+            if (explicit === null || explicit === 'jellyfin') {
+                return this.jellyfinAPI;
+            }
+        }
         return this.tidalAPI;
     }
 
@@ -114,11 +129,11 @@ export class MusicAPI {
     }
 
     async searchPlaylists(query, options = {}) {
-        return this.tidalAPI.searchPlaylists(query, options);
+        return this.getAPI().searchPlaylists(query, options);
     }
 
     async searchVideos(query, options = {}) {
-        return this.tidalAPI.searchVideos(query, options);
+        return this.getAPI().searchVideos(query, options);
     }
 
     async searchPodcasts(query, options = {}) {
@@ -186,12 +201,11 @@ export class MusicAPI {
     }
 
     async getArtistSocials(artistName) {
-        return this.tidalAPI.getArtistSocials(artistName);
+        return this.getAPI().getArtistSocials(artistName);
     }
 
     async getPlaylist(id, _provider = null) {
-        // Playlists are always Tidal for now
-        return this.tidalAPI.getPlaylist(id);
+        return this.getAPI().getPlaylist(id);
     }
 
     async getMix(id) {
@@ -217,17 +231,17 @@ export class MusicAPI {
 
     // Cover/artwork methods
     getCoverUrl(id, size = '320') {
-        if (typeof id === 'string' && id.startsWith('blob:')) {
+        if (typeof id === 'string' && (id.startsWith('blob:') || id.startsWith('data:'))) {
             return id;
         }
-        return this.tidalAPI.getCoverUrl(this.stripProviderPrefix(id), size);
+        return this.getAPI().getCoverUrl(this.stripProviderPrefix(id), size);
     }
 
     getCoverSrcset(id) {
         if (typeof id === 'string' && id.startsWith('blob:')) {
             return '';
         }
-        return this.tidalAPI.getCoverSrcset(this.stripProviderPrefix(id));
+        return this.getAPI().getCoverSrcset(this.stripProviderPrefix(id));
     }
 
     getVideoCoverUrl(imageId, size = '1280') {
@@ -237,7 +251,7 @@ export class MusicAPI {
         if (typeof imageId === 'string' && imageId.startsWith('blob:')) {
             return imageId;
         }
-        return this.tidalAPI.getVideoCoverUrl(this.stripProviderPrefix(imageId), size);
+        return this.getAPI().getVideoCoverUrl(this.stripProviderPrefix(imageId), size);
     }
 
     async getVideoArtwork(title, artist) {
@@ -267,11 +281,11 @@ export class MusicAPI {
     }
 
     getArtistPictureUrl(id, size = '320') {
-        return this.tidalAPI.getArtistPictureUrl(this.stripProviderPrefix(id), size);
+        return this.getAPI().getArtistPictureUrl(this.stripProviderPrefix(id), size);
     }
 
     getArtistPictureSrcset(id) {
-        return this.tidalAPI.getArtistPictureSrcset(this.stripProviderPrefix(id));
+        return this.getAPI().getArtistPictureSrcset(this.stripProviderPrefix(id));
     }
 
     async getArtistBanner(artistName) {
@@ -351,7 +365,7 @@ export class MusicAPI {
     }
 
     async getArtistTopTracks(artistId, options = {}) {
-        return this.tidalAPI.getArtistTopTracks(artistId, options);
+        return this.getAPI().getArtistTopTracks(artistId, options);
     }
 
     async getSimilarAlbums(albumId) {
@@ -361,13 +375,13 @@ export class MusicAPI {
     }
 
     async getRecommendedTracksForPlaylist(tracks, limit = 20, options = {}) {
-        // Use Tidal for recommendations
-        return this.tidalAPI.getRecommendedTracksForPlaylist(tracks, limit, options);
+        return this.getAPI().getRecommendedTracksForPlaylist(tracks, limit, options);
     }
 
     // Cache methods
     async clearCache() {
         await this.tidalAPI.clearCache();
+        await this.jellyfinAPI.clearCache();
     }
 
     getCacheStats() {

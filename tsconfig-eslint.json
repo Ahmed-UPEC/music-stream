@@ -17,6 +17,6 @@
         "skipLibCheck": true,
         "noEmit": true
     },
-    "include": ["**/*.ts", "*.ts", "**/*.js", "*.js"],
+    "include": ["**/*.ts", "*.ts", "**/*.js", "*.js", "vite.preview.config.mjs"],
     "exclude": ["**/node_modules/*"]
 }

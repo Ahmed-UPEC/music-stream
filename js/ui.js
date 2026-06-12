@@ -32,6 +32,7 @@ import {
     artistBannerSettings,
 } from './storage.js';
 import { db } from './db.js';
+import { LAZY_PLACEHOLDER } from './lazy-images.js';
 import { getVibrantColorFromImage } from './vibrant-color.js';
 import { syncManager } from './accounts/pocketbase.js';
 import { authManager } from './accounts/auth.js';
@@ -41,6 +42,8 @@ import { Visualizer } from './visualizer.js';
 import { audioContextManager } from './audio-context.js';
 import { navigate } from './router.js';
 import { sidePanelManager } from './side-panel.js';
+import { renderDownloadPage } from './download-page.js';
+import { renderFamilyPage, initFamilyAccount } from './family-account.js';
 import {
     renderUnreleasedPage as renderUnreleasedTrackerPage,
     renderTrackerArtistPage as renderTrackerArtistContent,
@@ -264,7 +267,6 @@ export class UIRenderer {
             await this.renderHomeEditorsPicks(true, 'home-editors-picks-empty');
         });
 
-        this.loadDonateGoal();
     }
 
     static async initialize(api, player) {
@@ -649,7 +651,13 @@ export class UIRenderer {
             return `<img src="${wsrvUrl}" class="${className}" alt="${alt}" loading="${loading}"${fetchPriorityAttr}>`;
         }
 
-        return `<img src="${imageUrl}" class="${className}" alt="${alt}" loading="${loading}">`;
+        if (loading === 'eager') {
+            return `<img src="${imageUrl}" class="${className}" alt="${alt}" loading="eager" decoding="async">`;
+        }
+
+        // data-src + IntersectionObserver (see lazy-images.js): native lazy
+        // loading still prefetches far below the fold, this does not.
+        return `<img data-src="${imageUrl}" src="${LAZY_PLACEHOLDER}" class="${className}" alt="${alt}" loading="lazy" decoding="async">`;
     }
 
     createBaseCardHTML({
@@ -2397,7 +2405,7 @@ export class UIRenderer {
             page.classList.toggle('active', page.id === `page-${pageId}`);
         });
 
-        document.querySelectorAll('.sidebar-nav a').forEach((link) => {
+        document.querySelectorAll('.sidebar-nav a, .bottom-nav a').forEach((link) => {
             link.classList.toggle(
                 'active',
                 link.pathname === `/${pageId}` || (pageId === 'home' && link.pathname === '/')
@@ -2457,9 +2465,6 @@ export class UIRenderer {
             document.querySelectorAll('.settings-tab-content').forEach((c) => c.classList.remove('active'));
         }
 
-        if (pageId === 'donate') {
-            this.loadDonateGoal();
-        }
     }
 
     async loadDonateGoal() {
@@ -2620,6 +2625,14 @@ export class UIRenderer {
         await partyManager.joinParty(id);
     }
 
+    async renderDownloadPage() {
+        await renderDownloadPage(this);
+    }
+
+    async renderFamilyPage() {
+        await renderFamilyPage(this);
+    }
+
     async renderLibraryPage() {
         await this.showPage('library');
 
@@ -2627,7 +2640,6 @@ export class UIRenderer {
         const albumsContainer = document.getElementById('library-albums-container');
         const artistsContainer = document.getElementById('library-artists-container');
         const playlistsContainer = document.getElementById('library-playlists-container');
-        const localContainer = document.getElementById('library-local-container');
         const foldersContainer = document.getElementById('my-folders-container');
         const myPlaylistsContainer = document.getElementById('my-playlists-container');
 
@@ -2755,6 +2767,7 @@ export class UIRenderer {
 
         if (myPlaylistsContainer) {
             myPlaylistsContainer.querySelectorAll('.user-playlist').forEach((el) => el.remove());
+            myPlaylistsContainer.querySelectorAll('[data-playlist-id]').forEach((el) => el.remove());
             myPlaylistsContainer.querySelectorAll('.placeholder-text').forEach((el) => el.remove());
 
             if (visiblePlaylists.length) {
@@ -2769,12 +2782,234 @@ export class UIRenderer {
                     }
                 });
             }
+
+            // Family server playlists (linked to the signed-in Jellyfin account)
+            try {
+                const jellyfinAPI = this.api.jellyfinAPI;
+                if (jellyfinAPI?.isConfigured()) {
+                    const serverPlaylists = await jellyfinAPI.getUserPlaylists();
+                    if (serverPlaylists.length) {
+                        myPlaylistsContainer.insertAdjacentHTML(
+                            'beforeend',
+                            serverPlaylists.map((p) => this.createPlaylistCardHTML(p)).join('')
+                        );
+                        serverPlaylists.forEach((playlist) => {
+                            const el = myPlaylistsContainer.querySelector(
+                                `[data-playlist-id="${playlist.uuid}"]`
+                            );
+                            if (el) {
+                                trackDataStore.set(el, playlist);
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not load family server playlists:', error);
+            }
         }
 
-        // Render Local Files
-        if (localContainer) {
-            await this.renderLocalFiles(localContainer);
+        // Render Downloaded music (the family Jellyfin library)
+        await this.renderDownloadedMusic();
+    }
+
+    // "Add tracks" on server (Jellyfin) playlist pages: search the family
+    // library inline and add tracks to this playlist.
+    setupPlaylistAddTracks(playlistId) {
+        const btn = document.getElementById('add-tracks-playlist-btn');
+        const panel = document.getElementById('playlist-add-tracks-panel');
+        const input = document.getElementById('playlist-add-search-input');
+        const resultsEl = document.getElementById('playlist-add-results');
+        if (!btn || !panel || !input || !resultsEl) return;
+
+        const jellyfinAPI = this.api.jellyfinAPI;
+        const isServerPlaylist = jellyfinAPI?.isConfigured() && /^[0-9a-f]{32}$/i.test(String(playlistId));
+
+        panel.style.display = 'none';
+        resultsEl.innerHTML = '';
+        input.value = '';
+        btn.style.display = isServerPlaylist ? '' : 'none';
+        if (!isServerPlaylist) return;
+
+        let addedCount = 0;
+
+        btn.onclick = async () => {
+            const isOpen = panel.style.display !== 'none';
+            panel.style.display = isOpen ? 'none' : '';
+            if (!isOpen) {
+                input.focus();
+            } else if (addedCount > 0) {
+                // Re-render so the new tracks appear in the list
+                addedCount = 0;
+                await this.renderPlaylistPage(playlistId, 'api');
+            }
+        };
+
+        let searchTimer = null;
+        input.oninput = () => {
+            clearTimeout(searchTimer);
+            const query = input.value.trim();
+            if (!query) {
+                resultsEl.innerHTML = '';
+                return;
+            }
+
+            searchTimer = setTimeout(async () => {
+                resultsEl.innerHTML = createPlaceholder('Searching your library...');
+                try {
+                    const result = await jellyfinAPI.searchTracks(query);
+                    const tracks = result.items || [];
+                    if (!tracks.length) {
+                        resultsEl.innerHTML = createPlaceholder('No tracks found in the library.');
+                        return;
+                    }
+
+                    resultsEl.innerHTML = tracks
+                        .map(
+                            (t, i) => `
+                        <div class="track-item" style="cursor: default">
+                            <img
+                                src="${t.album?.cover || '/assets/appicon.png'}"
+                                alt=""
+                                style="width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0"
+                            />
+                            <div class="track-item-info" style="flex: 1; min-width: 0; margin-left: 10px">
+                                <div class="track-item-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${escapeHtml(t.title)}</div>
+                                <div class="track-item-artist" style="color: var(--muted-foreground)">${escapeHtml(t.artist?.name || '')}</div>
+                            </div>
+                            <button class="btn-secondary playlist-add-track-btn" data-add-index="${i}">+ Add</button>
+                        </div>`
+                        )
+                        .join('');
+
+                    resultsEl.querySelectorAll('.playlist-add-track-btn').forEach((addBtn) => {
+                        addBtn.addEventListener('click', async () => {
+                            const track = tracks[Number(addBtn.dataset.addIndex)];
+                            addBtn.disabled = true;
+                            addBtn.textContent = 'Adding...';
+                            try {
+                                await jellyfinAPI.addToPlaylist(playlistId, track.id);
+                                addedCount += 1;
+                                addBtn.textContent = 'Added ✓';
+                                showNotification(`Added "${track.title}" to playlist`);
+                            } catch {
+                                addBtn.disabled = false;
+                                addBtn.textContent = '+ Add';
+                                showNotification('Could not add track to playlist.');
+                            }
+                        });
+                    });
+                } catch {
+                    resultsEl.innerHTML = createPlaceholder('Library search failed.');
+                }
+            }, 350);
+        };
+    }
+
+    async renderDownloadedMusic() {
+        const albumsGrid = document.getElementById('library-downloaded-albums');
+        const artistsGrid = document.getElementById('library-downloaded-artists');
+        const singlesList = document.getElementById('library-downloaded-singles');
+        if (!albumsGrid || !artistsGrid || !singlesList) return;
+
+        const jellyfinAPI = this.api.jellyfinAPI;
+        if (!jellyfinAPI?.isConfigured()) {
+            albumsGrid.innerHTML = createPlaceholder('Family server not connected.');
+            artistsGrid.innerHTML = '';
+            singlesList.innerHTML = '';
+            return;
         }
+
+        try {
+            const [albums, artists, tracks] = await Promise.all([
+                jellyfinAPI.getRecentAlbums(),
+                jellyfinAPI.getAllArtists(),
+                jellyfinAPI.getRecentTracks(),
+            ]);
+
+            albumsGrid.innerHTML = albums.length
+                ? albums.map((a) => this.createAlbumCardHTML(a)).join('')
+                : createPlaceholder('No albums downloaded yet.');
+            for (const album of albums) {
+                const el = albumsGrid.querySelector(`[data-album-id="${album.id}"]`);
+                if (el) trackDataStore.set(el, album);
+            }
+
+            artistsGrid.innerHTML = artists.length
+                ? artists.map((a) => this.createArtistCardHTML(a)).join('')
+                : createPlaceholder('No artists yet.');
+            for (const artist of artists) {
+                const el = artistsGrid.querySelector(`[data-artist-id="${artist.id}"]`);
+                if (el) trackDataStore.set(el, artist);
+            }
+
+            // Tracks with missing artist metadata get their own section with an
+            // "Assign artist" action; the rest without an album are Singles.
+            const isUnknownArtist = (t) => !t.artist?.id && (!t.artist?.name || t.artist.name === 'Unknown Artist');
+            const unknown = tracks.filter(isUnknownArtist);
+            const singles = tracks.filter((t) => !t.album?.id && !isUnknownArtist(t));
+
+            if (singles.length) {
+                await this.renderListWithTracks(singlesList, singles, true, false, false, true);
+            } else {
+                singlesList.innerHTML = createPlaceholder('No singles downloaded yet.');
+            }
+
+            this.renderUnknownArtistTracks(unknown, jellyfinAPI);
+        } catch (error) {
+            console.warn('Could not load downloaded music:', error);
+            albumsGrid.innerHTML = createPlaceholder('Could not load downloaded music.');
+        }
+    }
+
+    renderUnknownArtistTracks(tracks, jellyfinAPI) {
+        const header = document.getElementById('library-downloaded-unknown-header');
+        const list = document.getElementById('library-downloaded-unknown');
+        if (!header || !list) return;
+
+        if (!tracks.length) {
+            header.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+
+        header.style.display = '';
+        list.innerHTML = tracks
+            .map(
+                (t, i) => `
+            <div class="track-item" style="cursor: default">
+                <img
+                    src="${t.album?.cover || '/assets/appicon.png'}"
+                    alt=""
+                    style="width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0"
+                />
+                <div class="track-item-info" style="flex: 1; min-width: 0; margin-left: 10px">
+                    <div class="track-item-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${escapeHtml(t.title)}</div>
+                    <div class="track-item-artist" style="color: var(--muted-foreground)">Unknown artist</div>
+                </div>
+                <button class="btn-secondary assign-artist-btn" data-unknown-index="${i}">Assign artist</button>
+            </div>`
+            )
+            .join('');
+
+        list.querySelectorAll('.assign-artist-btn').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const track = tracks[Number(btn.dataset.unknownIndex)];
+                const name = window.prompt(`Artist name for "${track.title}":`);
+                if (!name || !name.trim()) return;
+
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+                try {
+                    await jellyfinAPI.setTrackArtist(track.id, name.trim());
+                    showNotification(`Assigned "${track.title}" to ${name.trim()}`);
+                    await this.renderDownloadedMusic();
+                } catch (error) {
+                    btn.disabled = false;
+                    btn.textContent = 'Assign artist';
+                    showNotification(`Could not assign artist: ${error.message}`);
+                }
+            });
+        });
     }
 
     async renderLocalFiles(container) {
@@ -2817,6 +3052,36 @@ export class UIRenderer {
         }
     }
 
+    async renderHomeRecentlyDownloaded() {
+        const section = document.getElementById('home-recently-downloaded-section');
+        const grid = document.getElementById('home-recently-downloaded');
+        if (!section || !grid) return;
+
+        const jellyfinAPI = this.api.jellyfinAPI;
+        if (!jellyfinAPI?.isConfigured()) {
+            section.style.display = 'none';
+            return;
+        }
+
+        try {
+            const albums = await jellyfinAPI.getRecentAlbums(12);
+            if (!albums.length) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = '';
+            grid.innerHTML = albums.map((a) => this.createAlbumCardHTML(a)).join('');
+            for (const album of albums) {
+                const el = grid.querySelector(`[data-album-id="${album.id}"]`);
+                if (el) trackDataStore.set(el, album);
+            }
+        } catch (error) {
+            console.warn('Could not load recently downloaded music:', error);
+            section.style.display = 'none';
+        }
+    }
+
     async renderHomePage() {
         if (this.renderLock) return;
         this.renderLock = true;
@@ -2834,25 +3099,14 @@ export class UIRenderer {
             const favorites = await db.getFavorites('track');
             const playlists = await db.getPlaylists(true);
 
-            const hasActivity = history.length > 0 || favorites.length > 0 || playlists.length > 0;
+            // A connected family library counts as content even before any listening
+            const hasLibrary = Boolean(this.api.jellyfinAPI?.isConfigured());
+            const hasActivity = history.length > 0 || favorites.length > 0 || playlists.length > 0 || hasLibrary;
 
-            // Handle Editor's Picks visibility based on settings
-            if (!homePageSettings.shouldShowEditorsPicks()) {
-                if (editorsPicksSectionEmpty) editorsPicksSectionEmpty.style.display = 'none';
-                if (editorsPicksSection) editorsPicksSection.style.display = 'none';
-            } else {
-                // Show empty-state section at top when no activity, hide the bottom one
-                if (editorsPicksSectionEmpty) editorsPicksSectionEmpty.style.display = hasActivity ? 'none' : '';
-                // Show bottom section when has activity, render it
-                if (editorsPicksSection) editorsPicksSection.style.display = hasActivity ? '' : 'none';
-            }
-
-            // Render editor's picks in the visible container
-            if (hasActivity) {
-                await this.renderHomeEditorsPicks(false, 'home-editors-picks');
-            } else {
-                await this.renderHomeEditorsPicks(false, 'home-editors-picks-empty');
-            }
+            // Editor's Picks removed: it only sourced TIDAL editorial content,
+            // which is irrelevant for the self-hosted Jellyfin library.
+            if (editorsPicksSectionEmpty) editorsPicksSectionEmpty.style.display = 'none';
+            if (editorsPicksSection) editorsPicksSection.style.display = 'none';
 
             if (!hasActivity) {
                 if (welcomeEl) welcomeEl.style.display = 'block';
@@ -2862,6 +3116,9 @@ export class UIRenderer {
 
             if (welcomeEl) welcomeEl.style.display = 'none';
             if (contentEl) contentEl.style.display = 'block';
+
+            // Recently downloaded music from the family library
+            void this.renderHomeRecentlyDownloaded();
 
             const refreshSongsBtn = document.getElementById('refresh-songs-btn');
             const refreshAlbumsBtn = document.getElementById('refresh-albums-btn');
@@ -4392,7 +4649,7 @@ export class UIRenderer {
                         });
                     }
                 });
-                finalArtists = await this.api.tidalAPI.enrichArtistsWithPicture(Array.from(artistMap.values()));
+                finalArtists = await this.api.getAPI().enrichArtistsWithPicture(Array.from(artistMap.values()));
             }
 
             if (finalAlbums.length === 0 && finalTracks.length > 0) {
@@ -5066,6 +5323,8 @@ export class UIRenderer {
         // Reset search input for new playlist
         const searchInput = document.getElementById('track-list-search-input');
         if (searchInput) searchInput.value = '';
+
+        this.setupPlaylistAddTracks(playlistId);
 
         const imageEl = document.getElementById('playlist-detail-image');
         const collageEl = document.getElementById('playlist-detail-collage');
@@ -5925,7 +6184,7 @@ export class UIRenderer {
             this.adjustTitleFontSize(nameEl, artist.name);
 
             metaEl.innerHTML = `
-                <span>${artist.popularity}% Popularity</span>
+                <span>${artist.popularity != null ? `${artist.popularity}% Popularity` : ''}</span>
                 <div class="artist-tags">
                     ${(artist.artistRoles || [])
                         .filter((role) => role.category)
@@ -5935,7 +6194,7 @@ export class UIRenderer {
             `;
 
             this.api.getArtistSocials(artist.name).then((links) => {
-                if (socialsEl && links.length > 0) {
+                if (socialsEl && links && links.length > 0) {
                     socialsEl.innerHTML = links.map((link) => this.createSocialLinkHTML(link)).join('');
                 }
             });

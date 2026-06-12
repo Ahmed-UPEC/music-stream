@@ -11721,6 +11721,7 @@ img.cd {
     color: var(--primary-foreground);
 }
 
+/* stylelint-disable-next-line no-descending-specificity */
 #sidebar-nav-donate a {
     background-color: transparent !important;
     transform: none !important;
@@ -11772,4 +11773,395 @@ body.sidebar-collapsed .sidebar-donate-goal {
 
 body.sidebar-collapsed #sidebar-nav-donate {
     padding-bottom: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE BOTTOM NAVIGATION BAR
+   Provides primary navigation on phones. Hidden on desktop.
+   ══════════════════════════════════════════════════════════════ */
+
+.bottom-nav {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* ── Bottom navigation bar ──────────────────────────────── */
+    .bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: calc(56px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        background: color-mix(in srgb, var(--background) 92%, transparent);
+        backdrop-filter: blur(24px);
+        /* stylelint-disable-next-line property-no-vendor-prefix */
+        -webkit-backdrop-filter: blur(24px);
+        border-top: 1px solid var(--border);
+        z-index: 2200;
+        justify-content: space-around;
+        align-items: stretch;
+    }
+
+    .bottom-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        gap: 3px;
+        padding: 6px 4px;
+        min-height: 44px;
+        color: var(--muted-foreground);
+        text-decoration: none;
+        font-size: 0.62rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        transition: color var(--transition-fast);
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .bottom-nav-item svg {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+    }
+
+    .bottom-nav-item.active {
+        color: var(--highlight);
+    }
+
+    .bottom-nav-item span {
+        display: block;
+        line-height: 1;
+    }
+
+    /* ── Player bar: float above the bottom nav ─────────────── */
+    .now-playing-bar {
+        width: calc(100% - 1.5rem) !important;
+        left: 0.75rem !important;
+        bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+        border-radius: var(--radius-lg) !important;
+    }
+
+    /* ── Main content: room for player bar + bottom nav ─────── */
+    .main-content {
+        padding-bottom: calc(var(--player-bar-height-mobile) + 56px + env(safe-area-inset-bottom, 0px) + 1.5rem) !important;
+    }
+
+    /* ── Toast notifications: above bottom nav ──────────────── */
+    #download-notifications {
+        bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    }
+
+    /* ── Tighter card grid for phone portrait ───────────────── */
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+}
+
+/* Very small phones (< 360px): icon-only bottom nav */
+@media (max-width: 360px) {
+    .bottom-nav-item span {
+        display: none;
+    }
+
+    .bottom-nav {
+        height: calc(50px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .now-playing-bar {
+        bottom: calc(50px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    }
+
+    .main-content {
+        padding-bottom: calc(var(--player-bar-height-mobile) + 50px + env(safe-area-inset-bottom, 0px) + 1rem) !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FAMILY SERVER SETTINGS (Jellyfin connection)
+   ══════════════════════════════════════════════════════════════ */
+
+.jellyfin-input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--foreground);
+    width: 100%;
+    max-width: 320px;
+}
+
+.jellyfin-credentials {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 320px;
+}
+
+.jellyfin-status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+    flex-shrink: 0;
+}
+
+.jellyfin-status-dot[data-state='online'] {
+    background: #2a9d8f;
+}
+
+.jellyfin-status-dot[data-state='offline'] {
+    background: #e63946;
+}
+
+.jellyfin-status-dot[data-state='checking'] {
+    background: #e9c46a;
+}
+
+/* Small red dot over the header avatar when the family server is unreachable
+   (positioned against .header-account-control, which is already relative) */
+.jellyfin-conn-indicator {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e63946;
+    border: 2px solid var(--background);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FAMILY PROFILE CARDS (was inline styles in family-account.js)
+   ══════════════════════════════════════════════════════════════ */
+
+.family-profile-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 12px;
+    width: 110px;
+}
+
+.family-profile-avatar {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #fff;
+    opacity: 0.85;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+}
+
+.family-profile-card.current .family-profile-avatar {
+    outline: 3px solid var(--foreground);
+    outline-offset: 3px;
+    opacity: 1;
+}
+
+.family-profile-name {
+    color: var(--foreground);
+    font-weight: 400;
+}
+
+.family-profile-card.current .family-profile-name {
+    font-weight: 700;
+}
+
+.family-profile-avatar.create {
+    font-size: 2.4rem;
+    font-weight: 400;
+    color: var(--muted-foreground);
+    border: 2px dashed var(--border);
+    background: none;
+    opacity: 1;
+}
+
+.family-profile-name.muted {
+    color: var(--muted-foreground);
+}
+
+.family-avatar-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 1.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PULL-TO-REFRESH INDICATOR
+   ══════════════════════════════════════════════════════════════ */
+
+.pull-refresh-indicator {
+    position: fixed;
+    top: max(env(safe-area-inset-top, 0px), 8px);
+    left: 50%;
+    transform: translate(-50%, -60px);
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2300;
+    transition: transform 0.2s ease;
+    pointer-events: none;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.pull-refresh-indicator svg {
+    width: 20px;
+    height: 20px;
+    color: var(--highlight);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.pull-refresh-indicator.refreshing svg {
+    animation: pull-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes pull-refresh-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PWA INSTALL PROMPT
+   ══════════════════════════════════════════════════════════════ */
+
+.pwa-install-banner {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 12px);
+    width: min(420px, calc(100vw - 2rem));
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2xl);
+    padding: 0.9rem 1rem;
+    z-index: 2350;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    animation: slide-up 0.3s ease;
+}
+
+.pwa-install-banner .pwa-install-title {
+    font-weight: 700;
+}
+
+.pwa-install-banner .pwa-install-text {
+    font-size: 0.85rem;
+    color: var(--muted-foreground);
+}
+
+.pwa-install-banner .pwa-install-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE UX FIXES (backlog 2026-06-10)
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    /* The bottom nav already provides Home/Library/Recent/Download/Settings —
+       the slide-in sidebar only shows pinned items on phones */
+    .sidebar-nav.main {
+        display: none;
+    }
+
+    /* Single compositing blur layer: the player bar keeps its blur, the
+       bottom nav goes (near-)opaque to avoid stacked backdrop-filters */
+    .bottom-nav {
+        background: color-mix(in srgb, var(--background) 97%, transparent);
+        backdrop-filter: none;
+        /* stylelint-disable-next-line property-no-vendor-prefix */
+        -webkit-backdrop-filter: none;
+    }
+}
+
+/* Keep the bottom nav visible and tappable above the fullscreen player */
+body:has(#fullscreen-cover-overlay:not([style*='display: none'])) .bottom-nav {
+    z-index: 2400;
+}
+
+/* Tap press feedback on touch devices */
+@media (hover: none) {
+    .card:active {
+        transform: scale(0.97);
+        opacity: 0.85;
+        transition:
+            transform 0.08s ease,
+            opacity 0.08s ease;
+    }
+
+    .track-item:active {
+        background: color-mix(in srgb, var(--foreground) 8%, transparent);
+        transition: background 0.08s ease;
+    }
+
+    .bottom-nav-item:active svg {
+        transform: scale(0.88);
+        transition: transform 0.08s ease;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RTL FOUNDATION (Arabic / Hebrew)
+   Core layout mirroring; FR/EN remain LTR.
+   ══════════════════════════════════════════════════════════════ */
+
+[dir='rtl'] .sidebar {
+    border-right: none;
+    border-left: 1px solid var(--border);
+}
+
+[dir='rtl'] .app-container {
+    grid-template:
+        'main sidebar' 1fr
+        'player player' auto / 1fr 210px;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+[dir='rtl'] .track-item-info,
+[dir='rtl'] .setting-item .info {
+    text-align: right;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+[dir='rtl'] .now-playing-bar {
+    direction: rtl;
+}
+
+[dir='rtl'] .search-icon {
+    left: auto;
+    right: 12px;
+}
+
+[dir='rtl'] .pinned-items-header,
+[dir='rtl'] .sidebar-nav {
+    text-align: right;
 }

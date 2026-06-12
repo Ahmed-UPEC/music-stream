@@ -53,7 +53,7 @@ export class Player {
         this.repeatMode = REPEAT_MODE.OFF;
         this.preloadCache = new Map();
         this._pendingPreload = false;
-        setInterval(this.checkPreloadConditions.bind(this), 2000);
+        this._preloadInterval = null;
         this.preloadAbortController = null;
         this.currentTrack = null;
         this.currentRgValues = null;
@@ -544,10 +544,25 @@ export class Player {
 
     preloadNextTracks() {
         this._pendingPreload = true;
+        // Poll only while a preload is pending instead of running forever
+        if (!this._preloadInterval) {
+            this._preloadInterval = setInterval(this.checkPreloadConditions.bind(this), 2000);
+        }
+    }
+
+    _stopPreloadPolling() {
+        if (this._preloadInterval) {
+            clearInterval(this._preloadInterval);
+            this._preloadInterval = null;
+        }
     }
 
     async checkPreloadConditions() {
-        if (!this._pendingPreload || !this.activeElement || this.activeElement.paused) return;
+        if (!this._pendingPreload) {
+            this._stopPreloadPolling();
+            return;
+        }
+        if (!this.activeElement || this.activeElement.paused) return;
 
         const currentTime = this.activeElement.currentTime || 0;
         const duration = this.activeElement.duration || 0;
@@ -558,6 +573,7 @@ export class Player {
 
         if (shouldPreload) {
             this._pendingPreload = false;
+            this._stopPreloadPolling();
             void this._executePreloadNextTracks().catch(console.error);
         }
     }

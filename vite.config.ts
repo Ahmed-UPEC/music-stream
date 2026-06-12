@@ -1,7 +1,10 @@
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import authGatePlugin from './vite-plugin-auth-gate.js';
+import jellyfinAuthPlugin from './vite-plugin-jellyfin-auth.js';
+import ytSearchPlugin from './vite-plugin-yt-search.js';
+import previewPlugin from './vite-plugin-preview.js';
 import blobAssetPlugin from './vite-plugin-blob.js';
 import svgUse from './vite-plugin-svg-use.js';
 import uploadPlugin from './vite-plugin-upload.js';
@@ -27,6 +30,23 @@ function getGitCommitHash() {
 
 export default defineConfig((_options) => {
     const commitHash = getGitCommitHash();
+    const env = loadEnv(_options.mode, process.cwd(), '');
+
+    // Same-origin proxy to the Jellyfin server so streaming and the Web Audio
+    // visualizer work without CORS or mixed-content issues.
+    const jellyfinProxy = {
+        '/jellyfin': {
+            target: env.JELLYFIN_TARGET || 'http://localhost:8096',
+            changeOrigin: true,
+            rewrite: (p: string) => p.replace(/^\/jellyfin/, ''),
+        },
+        // MeTube (YouTube download manager) — direct container port, bypasses umbrel auth proxy
+        '/metube': {
+            target: env.METUBE_TARGET || 'http://localhost:3701',
+            changeOrigin: true,
+            rewrite: (p: string) => p.replace(/^\/metube/, ''),
+        },
+    };
 
     return {
         test: {
@@ -61,16 +81,18 @@ export default defineConfig((_options) => {
             exclude: ['pocketbase', '@ffmpeg/ffmpeg', '@ffmpeg/util'],
         },
         server: {
+            host: true,
+            allowedHosts: true,
+            proxy: jellyfinProxy,
             fs: {
                 allow: ['.', 'node_modules'],
-                // host: true,
-                // allowedHosts: ['<your_tailscale_hostname>'], // e.g. pi5.tailf5f622.ts.net
             },
         },
-        // preview: {
-        //     host: true,
-        //     allowedHosts: ['<your_tailscale_hostname>'], // e.g. pi5.tailf5f622.ts.net
-        // },
+        preview: {
+            host: true,
+            allowedHosts: true,
+            proxy: jellyfinProxy,
+        },
         build: {
             outDir: 'dist',
             emptyOutDir: true,
@@ -83,6 +105,9 @@ export default defineConfig((_options) => {
         },
         plugins: [
             proxyAudioPlugin(),
+            jellyfinAuthPlugin(),
+            ytSearchPlugin(),
+            previewPlugin(env.PREVIEW_DIR || 'E:/umbrel/home/Music/.preview-tmp'),
             authGatePlugin(),
             uploadPlugin(),
             blobAssetPlugin(),
@@ -107,8 +132,14 @@ export default defineConfig((_options) => {
                             },
                         },
                         {
-                            urlPattern: ({ request }) =>
-                                request.destination === 'audio' || request.destination === 'video',
+                            // Never cache proxied streams: Jellyfin stream URLs embed a
+                            // session token and MeTube/preview streams are transient —
+                            // a cached copy causes stale/silent playback failures.
+                            urlPattern: ({ url, request }) =>
+                                (request.destination === 'audio' || request.destination === 'video') &&
+                                !url.pathname.startsWith('/jellyfin/') &&
+                                !url.pathname.startsWith('/metube/') &&
+                                !url.pathname.startsWith('/api/'),
                             handler: 'CacheFirst',
                             options: {
                                 cacheName: 'media',

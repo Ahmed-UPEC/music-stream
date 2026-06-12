@@ -25,6 +25,12 @@ import { initializePlayerEvents, initializeTrackInteractions, handleTrackAction 
 import { initializeUIInteractions } from './ui-interactions.js';
 import { debounce, getShareUrl, sanitizeForFilename } from './utils.js';
 import { sidePanelManager } from './side-panel.js';
+import { initFamilyAccount } from './family-account.js';
+import { initJellyfinSettings } from './jellyfin-settings.js';
+import { initPlayerBarGestures, initPullToRefresh } from './mobile-gestures.js';
+import { initInstallPrompt } from './pwa-install.js';
+import { initLazyImages } from './lazy-images.js';
+import { initI18n, bindLanguageSelect } from './i18n.js';
 import { db } from './db.js';
 import { showNotification } from './downloads.js';
 import { syncManager } from './accounts/pocketbase.js';
@@ -386,30 +392,55 @@ async function disablePwaForAuthGate() {
     }
 }
 
+// Self-hosted build: playlist covers are stored locally as data URLs instead of
+// being uploaded to Monochrome's cloud. The image is resized to keep IndexedDB small.
 async function uploadCoverImage(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            const SIZE = 512;
+            const canvas = document.createElement('canvas');
+            canvas.width = SIZE;
+            canvas.height = SIZE;
+            const ctx = canvas.getContext('2d');
+            // Cover-fit crop to a square
+            const scale = Math.max(SIZE / img.width, SIZE / img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+            ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('Could not read image file'));
+        };
+        img.src = objectUrl;
+    });
+}
+
+// The settings page template is route-split out of index.html (it was 54% of
+// the file). Fetch and inject it before any module binds to settings elements;
+// the i18n MutationObserver translates the injected nodes automatically.
+async function injectSettingsTemplate() {
+    const host = document.getElementById('page-settings');
+    if (!host || host.childElementCount > 0) return;
     try {
-        const response = await fetch(`https://worker.uploads.monochrome.qzz.io/${file.name}`, {
-            method: 'PUT',
-            headers: {
-                'x-api-key': 'if_youre_reading_this_fuck_off',
-                'Content-Type': file.type || 'application/octet-stream',
-            },
-            body: file,
-        });
-
-        if (!response.ok) {
-            if (response.status === 413) throw new Error('File exceeds 10MB');
-            throw new Error(`Upload failed: ${response.status}`);
-        }
-
-        return `https://images.monochrome.qzz.io/${await response.text()}`;
+        const response = await fetch('/partials/settings.html');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        host.innerHTML = await response.text();
     } catch (error) {
-        console.error('Cover upload error:', error);
-        throw error;
+        console.error('Failed to load settings page template:', error);
     }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Apply the chosen language before anything renders
+    initI18n();
+    await injectSettingsTemplate();
+    bindLanguageSelect();
+
     await modernSettings.waitPending();
 
     // Request persistent storage to reduce risk of browser wiping data on updates or cleanup
@@ -475,6 +506,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     await MusicAPI.initialize(apiSettings);
+    initFamilyAccount();
+    initJellyfinSettings();
 
     const audioPlayer = document.getElementById('audio-player');
 
@@ -660,6 +693,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     );
     initializeUIInteractions(Player.instance, MusicAPI.instance, UIRenderer.instance);
     initializeKeyboardShortcuts(Player.instance, audioPlayer);
+    initPlayerBarGestures();
+    initPullToRefresh();
+    initInstallPrompt();
+    initLazyImages();
 
     // Restore UI state for the current track (like button, theme)
     if (Player.instance.currentTrack) {
@@ -2750,10 +2787,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert('.');
             });
         } else {
-            headerAccountBtn.addEventListener('click', async (e) => {
+            // Top-right avatar opens the family profile picker
+            headerAccountBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                headerAccountDropdown.classList.toggle('active');
-                await updateAccountDropdown();
+                navigate('/family');
             });
         }
 

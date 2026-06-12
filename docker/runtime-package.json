@@ -1,0 +1,12 @@
+{
+    "name": "monochrome-runtime",
+    "private": true,
+    "type": "module",
+    "description": "Minimal dependency set for the production runtime stage (vite preview + server plugins)",
+    "dependencies": {
+        "vite": "^7.3.1",
+        "formidable": "^3.5.4",
+        "cookie-session": "^2.1.1",
+        "compression": "^1.8.1"
+    }
+}

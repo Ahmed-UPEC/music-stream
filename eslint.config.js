@@ -50,7 +50,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['**/*.js'],
+        files: ['**/*.js', '**/*.mjs'],
         rules: {
             '@typescript-eslint/no-unsafe-assignment': 'off',
             '@typescript-eslint/no-unsafe-call': 'off',
