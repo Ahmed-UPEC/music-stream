@@ -11847,7 +11847,9 @@ body.sidebar-collapsed #sidebar-nav-donate {
 
     /* ── Main content: room for player bar + bottom nav ─────── */
     .main-content {
-        padding-bottom: calc(var(--player-bar-height-mobile) + 56px + env(safe-area-inset-bottom, 0px) + 1.5rem) !important;
+        padding-bottom: calc(
+            var(--player-bar-height-mobile) + 56px + env(safe-area-inset-bottom, 0px) + 1.5rem
+        ) !important;
     }
 
     /* ── Toast notifications: above bottom nav ──────────────── */
@@ -11876,7 +11878,9 @@ body.sidebar-collapsed #sidebar-nav-donate {
     }
 
     .main-content {
-        padding-bottom: calc(var(--player-bar-height-mobile) + 50px + env(safe-area-inset-bottom, 0px) + 1rem) !important;
+        padding-bottom: calc(
+            var(--player-bar-height-mobile) + 50px + env(safe-area-inset-bottom, 0px) + 1rem
+        ) !important;
     }
 }
 

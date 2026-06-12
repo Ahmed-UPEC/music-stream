@@ -41,9 +41,7 @@ function fetchYouTubeHtml(url) {
 function fetchSearchHtml(query, type = 'videos') {
     // sp=EgIQAQ%3D%3D filters to videos, sp=EgIQAw%3D%3D filters to playlists (albums)
     const filter = type === 'albums' ? 'EgIQAw%253D%253D' : 'EgIQAQ%253D%253D';
-    return fetchYouTubeHtml(
-        `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=${filter}`
-    );
+    return fetchYouTubeHtml(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=${filter}`);
 }
 
 function parseResults(html) {

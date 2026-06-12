@@ -70,9 +70,7 @@ function updateAccountStatus() {
     const el = document.getElementById('jellyfin-account-status');
     if (!el) return;
     const username = jellyfin().username;
-    el.textContent = username
-        ? `${t('Signed in as')} ${username}`
-        : t('Leave empty to use the family server login.');
+    el.textContent = username ? `${t('Signed in as')} ${username}` : t('Leave empty to use the family server login.');
 }
 
 export function initJellyfinSettings() {

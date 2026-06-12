@@ -1,75 +1,75 @@
 services:
-  monochrome:
-    build:
-      context: .
-      args:
-        - VITE_JELLYFIN_URL=${VITE_JELLYFIN_URL:-/jellyfin}
-    container_name: monochrome_web_1
-    restart: unless-stopped
-    ports:
-      - "${APP_PORT:-3000}:4173"
-    environment:
-      - JELLYFIN_TARGET=${JELLYFIN_TARGET:-http://host.docker.internal:8096}
-      - METUBE_TARGET=${METUBE_TARGET:-http://host.docker.internal:3701}
-      - PREVIEW_DIR=/data/preview-tmp
-      - METUBE_CONTAINER=${METUBE_CONTAINER:-metube_metube_1}
-      # Server-side Jellyfin login (credentials never reach the browser).
-      # Reuses the old VITE_ var names from .env for backwards compatibility.
-      - JELLYFIN_USER=${JELLYFIN_USER:-${VITE_JELLYFIN_USER:-}}
-      - JELLYFIN_PASS=${JELLYFIN_PASS:-${VITE_JELLYFIN_PASS:-}}
-    healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:4173/health"]
-      interval: 30s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
-    volumes:
-      - preview-tmp:/data/preview-tmp
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - monochrome-network
+    monochrome:
+        build:
+            context: .
+            args:
+                - VITE_JELLYFIN_URL=${VITE_JELLYFIN_URL:-/jellyfin}
+        container_name: monochrome_web_1
+        restart: unless-stopped
+        ports:
+            - '${APP_PORT:-3000}:4173'
+        environment:
+            - JELLYFIN_TARGET=${JELLYFIN_TARGET:-http://host.docker.internal:8096}
+            - METUBE_TARGET=${METUBE_TARGET:-http://host.docker.internal:3701}
+            - PREVIEW_DIR=/data/preview-tmp
+            - METUBE_CONTAINER=${METUBE_CONTAINER:-metube_metube_1}
+            # Server-side Jellyfin login (credentials never reach the browser).
+            # Reuses the old VITE_ var names from .env for backwards compatibility.
+            - JELLYFIN_USER=${JELLYFIN_USER:-${VITE_JELLYFIN_USER:-}}
+            - JELLYFIN_PASS=${JELLYFIN_PASS:-${VITE_JELLYFIN_PASS:-}}
+        healthcheck:
+            test: ['CMD', 'wget', '-qO', '/dev/null', 'http://127.0.0.1:4173/health']
+            interval: 30s
+            timeout: 5s
+            start_period: 20s
+            retries: 3
+        volumes:
+            - preview-tmp:/data/preview-tmp
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+            - monochrome-network
 
-  pocketbase:
-    profiles: ["pocketbase"]
-    image: ghcr.io/muchobien/pocketbase:latest
-    container_name: monochrome_pocketbase_1
-    restart: unless-stopped
-    ports:
-      - "8090:8090"
-    environment:
-      - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL:-admin@example.com}
-      - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-changeme}
-    volumes:
-      - pocketbase-data:/pb_data
-    networks:
-      - monochrome-network
+    pocketbase:
+        profiles: ['pocketbase']
+        image: ghcr.io/muchobien/pocketbase:latest
+        container_name: monochrome_pocketbase_1
+        restart: unless-stopped
+        ports:
+            - '8090:8090'
+        environment:
+            - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL:-admin@example.com}
+            - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-changeme}
+        volumes:
+            - pocketbase-data:/pb_data
+        networks:
+            - monochrome-network
 
-  monochrome-dev:
-    profiles: ["dev"]
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    container_name: monochrome_dev_1
-    restart: unless-stopped
-    ports:
-      - "${DEV_PORT:-5173}:5173"
-    environment:
-      - JELLYFIN_TARGET=${JELLYFIN_TARGET:-http://host.docker.internal:8096}
-      - METUBE_TARGET=${METUBE_TARGET:-http://host.docker.internal:3701}
-      - PREVIEW_DIR=/data/preview-tmp
-      - METUBE_CONTAINER=${METUBE_CONTAINER:-metube_metube_1}
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - preview-tmp:/data/preview-tmp
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - monochrome-network
+    monochrome-dev:
+        profiles: ['dev']
+        build:
+            context: .
+            dockerfile: Dockerfile.dev
+        container_name: monochrome_dev_1
+        restart: unless-stopped
+        ports:
+            - '${DEV_PORT:-5173}:5173'
+        environment:
+            - JELLYFIN_TARGET=${JELLYFIN_TARGET:-http://host.docker.internal:8096}
+            - METUBE_TARGET=${METUBE_TARGET:-http://host.docker.internal:3701}
+            - PREVIEW_DIR=/data/preview-tmp
+            - METUBE_CONTAINER=${METUBE_CONTAINER:-metube_metube_1}
+        volumes:
+            - .:/app
+            - /app/node_modules
+            - preview-tmp:/data/preview-tmp
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+            - monochrome-network
 
 volumes:
-  preview-tmp:
-  pocketbase-data:
+    preview-tmp:
+    pocketbase-data:
 
 networks:
-  monochrome-network:
-    driver: bridge
+    monochrome-network:
+        driver: bridge

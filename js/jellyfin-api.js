@@ -463,7 +463,8 @@ export class JellyfinAPI {
             artists = item.Artists.map((name) => ({ id: null, name, type: 'MAIN', picture: null }));
         }
         const artist = artists[0] || this.mapArtistRef(item.AlbumArtists?.[0]);
-        const cover = item.AlbumPrimaryImageTag || item.ImageTags?.Primary ? this.imageUrl(item.AlbumId || item.Id) : null;
+        const cover =
+            item.AlbumPrimaryImageTag || item.ImageTags?.Primary ? this.imageUrl(item.AlbumId || item.Id) : null;
 
         return {
             id: item.Id,
@@ -570,23 +571,35 @@ export class JellyfinAPI {
 
     async searchTracks(query, _options = {}) {
         const data = await this.searchItems(query, 'Audio');
-        return this.page((data.Items || []).map((i) => this.mapTrack(i)), data.TotalRecordCount);
+        return this.page(
+            (data.Items || []).map((i) => this.mapTrack(i)),
+            data.TotalRecordCount
+        );
     }
 
     async searchAlbums(query, _options = {}) {
         const data = await this.searchItems(query, 'MusicAlbum');
-        return this.page((data.Items || []).map((i) => this.mapAlbum(i)), data.TotalRecordCount);
+        return this.page(
+            (data.Items || []).map((i) => this.mapAlbum(i)),
+            data.TotalRecordCount
+        );
     }
 
     async searchArtists(query, _options = {}) {
         const params = `searchTerm=${encodeURIComponent(query)}&Limit=20&Fields=${ITEM_FIELDS}`;
         const data = await this.cachedRequest(`/Artists?${params}`);
-        return this.page((data.Items || []).map((i) => this.mapArtist(i)), data.TotalRecordCount);
+        return this.page(
+            (data.Items || []).map((i) => this.mapArtist(i)),
+            data.TotalRecordCount
+        );
     }
 
     async searchPlaylists(query, _options = {}) {
         const data = await this.searchItems(query, 'Playlist');
-        return this.page((data.Items || []).map((i) => this.mapPlaylist(i)), data.TotalRecordCount);
+        return this.page(
+            (data.Items || []).map((i) => this.mapPlaylist(i)),
+            data.TotalRecordCount
+        );
     }
 
     async searchVideos(_query, _options = {}) {
@@ -676,7 +689,10 @@ export class JellyfinAPI {
         const data = await this.cachedRequest(
             `/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&Limit=${limit}&StartIndex=${offset}&SortBy=PlayCount&SortOrder=Descending&Fields=${ITEM_FIELDS}`
         );
-        const result = this.page((data.Items || []).map((i) => this.mapTrack(i)), data.TotalRecordCount);
+        const result = this.page(
+            (data.Items || []).map((i) => this.mapTrack(i)),
+            data.TotalRecordCount
+        );
         result.offset = offset;
         return result;
     }
@@ -848,7 +864,9 @@ export class JellyfinAPI {
         const seed = tracks?.[tracks.length - 1];
         if (!seed?.id) return [];
         try {
-            const data = await this.request(`/Items/${seed.id}/InstantMix?Limit=${limit + tracks.length}&Fields=${ITEM_FIELDS}`);
+            const data = await this.request(
+                `/Items/${seed.id}/InstantMix?Limit=${limit + tracks.length}&Fields=${ITEM_FIELDS}`
+            );
             const existing = new Set(tracks.map((t) => String(t.id)));
             return (data.Items || [])
                 .map((i) => this.mapTrack(i))

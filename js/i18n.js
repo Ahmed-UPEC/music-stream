@@ -215,8 +215,7 @@ const FR = {
     'Switched to': 'Profil changé :',
     'Profile created.': 'Profil créé.',
     'Could not create profile:': 'Impossible de créer le profil :',
-    'Could not load profiles from the family server:':
-        'Impossible de charger les profils depuis le serveur familial :',
+    'Could not load profiles from the family server:': 'Impossible de charger les profils depuis le serveur familial :',
     'Name for the new profile:': 'Nom du nouveau profil :',
     'Switch to': 'Passer à',
     'Install app': 'Installer l’application',

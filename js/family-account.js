@@ -119,9 +119,7 @@ export function updateHeaderAvatar() {
 function profileCardHTML(profile, isCurrent) {
     const initial = (profile.name[0] || '?').toUpperCase();
     const avatar = getCustomAvatar(profile.name);
-    const avatarStyle = avatar
-        ? `background-image: url('${avatar}')`
-        : `background: ${avatarColor(profile.name)}`;
+    const avatarStyle = avatar ? `background-image: url('${avatar}')` : `background: ${avatarColor(profile.name)}`;
     const title = isCurrent ? t('Current profile') : `${t('Switch to')} ${escapeHtml(profile.name)}`;
 
     return `

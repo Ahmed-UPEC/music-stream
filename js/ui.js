@@ -266,7 +266,6 @@ export class UIRenderer {
             await this.renderHomeEditorsPicks(true, 'home-editors-picks');
             await this.renderHomeEditorsPicks(true, 'home-editors-picks-empty');
         });
-
     }
 
     static async initialize(api, player) {
@@ -2464,7 +2463,6 @@ export class UIRenderer {
             document.querySelectorAll('.settings-tab').forEach((t) => t.classList.remove('active'));
             document.querySelectorAll('.settings-tab-content').forEach((c) => c.classList.remove('active'));
         }
-
     }
 
     async loadDonateGoal() {
@@ -2794,9 +2792,7 @@ export class UIRenderer {
                             serverPlaylists.map((p) => this.createPlaylistCardHTML(p)).join('')
                         );
                         serverPlaylists.forEach((playlist) => {
-                            const el = myPlaylistsContainer.querySelector(
-                                `[data-playlist-id="${playlist.uuid}"]`
-                            );
+                            const el = myPlaylistsContainer.querySelector(`[data-playlist-id="${playlist.uuid}"]`);
                             if (el) {
                                 trackDataStore.set(el, playlist);
                             }

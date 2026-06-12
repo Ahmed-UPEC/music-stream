@@ -207,8 +207,7 @@ async function toggleAlbumTracks(container, index, album) {
     panel.style.display = '';
     if (panel.dataset.loaded === 'true') return;
 
-    panel.innerHTML =
-        '<div style="padding: 12px; color: var(--muted-foreground)">Loading album tracks...</div>';
+    panel.innerHTML = '<div style="padding: 12px; color: var(--muted-foreground)">Loading album tracks...</div>';
 
     try {
         const response = await fetch(`/api/yt-playlist?id=${encodeURIComponent(album.id)}`);

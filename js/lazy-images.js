@@ -6,8 +6,7 @@
 // a data-src attribute (see ui.js getCoverHTML) and only get their real src
 // when they come within 200px of the viewport.
 
-export const LAZY_PLACEHOLDER =
-    'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+export const LAZY_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
 export function initLazyImages() {
     if (!('IntersectionObserver' in window)) {
